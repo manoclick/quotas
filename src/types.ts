@@ -7,6 +7,7 @@ export interface UserProfile {
   email?: string;
   name?: string;
   role: UserRole;
+  cellId?: string; // For gestor_celula
 }
 
 export interface SystemConfig {

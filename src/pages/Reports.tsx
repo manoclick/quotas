@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, where, doc, deleteDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { useUser } from '../contexts/UserContext';
 import { Teacher, Payment, SystemConfig, Cell } from '../types';
-import { Search, Calendar, DollarSign, Download, FileText, Filter, ShieldAlert, Edit2, CreditCard, Trash2 } from 'lucide-react';
+import { Search, Calendar, DollarSign, Download, FileText, Filter, ShieldAlert, Edit2, CreditCard, Trash2, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -14,6 +15,7 @@ import autoTable from 'jspdf-autotable';
 
 export default function Reports() {
   const navigate = useNavigate();
+  const { userProfile } = useUser();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [cells, setCells] = useState<Cell[]>([]);
@@ -202,7 +204,13 @@ export default function Reports() {
   const filteredTeachers = teachers.filter(t => {
     const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.cardNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
-    const matchesCell = selectedCell ? t.cellId === selectedCell : true;
+    
+    let matchesCell = selectedCell ? t.cellId === selectedCell : true;
+    
+    if (userProfile?.role === 'gestor_celula') {
+      matchesCell = t.cellId === userProfile.cellId;
+    }
+
     return matchesSearch && matchesCell;
   });
 
@@ -240,6 +248,17 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand-primary hover:border-brand-primary transition-all"
+          title="Voltar"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-2xl font-bold text-brand-ink">Relatórios</h2>
+      </div>
+
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-4 bg-gradient-to-br from-brand-primary to-brand-secondary text-slate-800 rounded-2xl flex items-center justify-between">
@@ -450,28 +469,40 @@ export default function Reports() {
       <div className="flex flex-col sm:flex-row justify-end gap-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Baixar PDF:</span>
-          <button 
-            onClick={() => generatePDF()}
-            className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs"
-          >
-            <Download size={14} />
-            Geral
-          </button>
-          <button 
-            onClick={() => generateAllCellsPDF()}
-            className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs"
-          >
-            <Download size={14} />
-            Todas Células
-          </button>
-          <button 
-            disabled={!selectedCell}
-            onClick={() => generatePDF(selectedCell)}
-            className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs disabled:opacity-50"
-          >
-            <Download size={14} />
-            {selectedCell ? `Célula: ${cells.find(c => c.id === selectedCell)?.name}` : 'Por Célula'}
-          </button>
+          {userProfile?.role !== 'gestor_celula' ? (
+            <>
+              <button 
+                onClick={() => generatePDF()}
+                className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs"
+              >
+                <Download size={14} />
+                Geral
+              </button>
+              <button 
+                onClick={() => generateAllCellsPDF()}
+                className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs"
+              >
+                <Download size={14} />
+                Todas Células
+              </button>
+              <button 
+                disabled={!selectedCell}
+                onClick={() => generatePDF(selectedCell)}
+                className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs disabled:opacity-50"
+              >
+                <Download size={14} />
+                {selectedCell ? `Célula: ${cells.find(c => c.id === selectedCell)?.name}` : 'Por Célula'}
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={() => generatePDF(userProfile.cellId)}
+              className="btn-secondary flex items-center gap-2 py-2 px-4 text-xs"
+            >
+              <Download size={14} />
+              Minha Célula: {cells.find(c => c.id === userProfile.cellId)?.name || '...'}
+            </button>
+          )}
         </div>
       </div>
 

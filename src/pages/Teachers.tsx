@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { useUser } from '../contexts/UserContext';
 import { Teacher, Zone, Circle, Cell, TeacherFunction } from '../types';
-import { Plus, Trash2, Edit2, Search, X, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, X, ShieldAlert, ShieldCheck, ArrowLeft } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Notification from '../components/Notification';
 
 export default function Teachers() {
+  const navigate = useNavigate();
+  const { userProfile } = useUser();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [circles, setCircles] = useState<Circle[]>([]);
@@ -146,17 +150,51 @@ export default function Teachers() {
     setIsModalOpen(true);
   };
 
+  useEffect(() => {
+    if (userProfile?.role === 'gestor_celula' && userProfile.cellId && !editingId && isModalOpen) {
+      // Find the circle and zone for this cell to pre-fill the hierarchy
+      const cell = cells.find(c => c.id === userProfile.cellId);
+      if (cell) {
+        const circle = circles.find(c => c.id === cell.circleId);
+        if (circle) {
+          setFormData(prev => ({
+            ...prev,
+            zoneId: circle.zoneId,
+            circleId: circle.id,
+            cellId: cell.id
+          }));
+        }
+      }
+    }
+  }, [userProfile, editingId, isModalOpen, cells, circles]);
+
   const filteredTeachers = teachers.filter(t => {
     const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.cardNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
     
-    if (filterBlocked === 'active') return matchesSearch && !t.blocked;
-    if (filterBlocked === 'blocked') return matchesSearch && t.blocked;
-    return matchesSearch;
+    const matchesFilter = filterBlocked === 'active' ? !t.blocked : 
+                         filterBlocked === 'blocked' ? t.blocked : true;
+
+    if (userProfile?.role === 'gestor_celula') {
+      return matchesSearch && matchesFilter && t.cellId === userProfile.cellId;
+    }
+
+    return matchesSearch && matchesFilter;
   });
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand-primary hover:border-brand-primary transition-all"
+          title="Voltar"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-2xl font-bold text-brand-ink">Gestão de Professores</h2>
+      </div>
+
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex flex-col sm:flex-row flex-1 gap-4">
           <div className="relative flex-1 max-w-md">
@@ -201,6 +239,21 @@ export default function Teachers() {
           Novo Professor
         </button>
       </div>
+
+      {/* Cell Info for Gestor da Célula */}
+      {userProfile?.role === 'gestor_celula' && (
+        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex items-center gap-3">
+          <div className="p-2 bg-white rounded-xl text-indigo-600">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Sua Célula</p>
+            <p className="text-sm font-bold text-indigo-900">
+              {cells.find(c => c.id === userProfile.cellId)?.name || 'Carregando...'}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
@@ -368,7 +421,7 @@ export default function Teachers() {
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Célula</label>
                   <select
                     required
-                    disabled={!formData.circleId}
+                    disabled={!formData.circleId || userProfile?.role === 'gestor_celula'}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:opacity-50 text-sm"
                     value={formData.cellId}
                     onChange={(e) => setFormData({ ...formData, cellId: e.target.value })}

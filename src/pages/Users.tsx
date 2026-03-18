@@ -1,43 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { UserProfile, UserRole } from '../types';
-import { Plus, Trash2, Shield, X, Mail, User, Lock } from 'lucide-react';
+import { UserProfile, UserRole, Cell } from '../types';
+import { Plus, Trash2, Shield, X, Mail, User, Lock, Layout, ArrowLeft, Edit2 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Notification from '../components/Notification';
 
 export default function Users() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [cells, setCells] = useState<Cell[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ username: '', password: '', name: '', role: 'professor' as UserRole });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({ username: '', password: '', name: '', role: 'professor' as UserRole, cellId: '' });
   
   const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; id: string } | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, 'users'), orderBy('username')), (snap) => {
+    const unsubUsers = onSnapshot(query(collection(db, 'users'), orderBy('username')), (snap) => {
       setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile)));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
-    return unsub;
+
+    const unsubCells = onSnapshot(query(collection(db, 'cells'), orderBy('name')), (snap) => {
+      setCells(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Cell)));
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'cells'));
+
+    return () => {
+      unsubUsers();
+      unsubCells();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const userId = formData.username.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-      await setDoc(doc(db, 'users', userId), {
+      const userId = editingId || formData.username.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+      const userData: any = {
         username: formData.username,
         password: formData.password,
         name: formData.name,
         role: formData.role
-      });
-      setNotification({ message: 'Gestor adicionado com sucesso!', type: 'success' });
+      };
+      if (formData.role === 'gestor_celula') {
+        userData.cellId = formData.cellId;
+      }
+
+      await setDoc(doc(db, 'users', userId), userData);
+      setNotification({ message: editingId ? 'Gestor atualizado com sucesso!' : 'Gestor adicionado com sucesso!', type: 'success' });
       setIsModalOpen(false);
-      setFormData({ username: '', password: '', name: '', role: 'professor' });
+      setEditingId(null);
+      setFormData({ username: '', password: '', name: '', role: 'professor', cellId: '' });
     } catch (error) {
-      setNotification({ message: 'Erro ao adicionar gestor.', type: 'error' });
-      handleFirestoreError(error, OperationType.CREATE, 'users');
+      setNotification({ message: editingId ? 'Erro ao atualizar gestor.' : 'Erro ao adicionar gestor.', type: 'error' });
+      handleFirestoreError(error, editingId ? OperationType.UPDATE : OperationType.CREATE, 'users');
     }
+  };
+
+  const handleEdit = (user: UserProfile) => {
+    setEditingId(user.id);
+    setFormData({
+      username: user.username,
+      password: user.password,
+      name: user.name,
+      role: user.role,
+      cellId: user.cellId || ''
+    });
+    setIsModalOpen(true);
   };
 
   const handleUpdateRole = async (id: string, newRole: UserRole) => {
@@ -65,9 +95,18 @@ export default function Users() {
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-brand-ink">Gestores do Sistema</h2>
-          <p className="text-slate-500">Gerencie quem pode acessar e editar as informações do app.</p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate(-1)}
+            className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand-primary hover:border-brand-primary transition-all"
+            title="Voltar"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h2 className="text-3xl font-bold text-brand-ink">Gestores do Sistema</h2>
+            <p className="text-slate-500">Gerencie quem pode acessar e editar as informações do app.</p>
+          </div>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
@@ -106,21 +145,38 @@ export default function Users() {
                   <p className="text-xs font-mono text-slate-600">{user.password}</p>
                 </td>
                 <td className="px-6 py-3">
-                  <select
-                    className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                    value={user.role}
-                    onChange={(e) => handleUpdateRole(user.id, e.target.value as UserRole)}
-                  >
-                    <option value="admin">Administrador</option>
-                    <option value="gestor">Gestor</option>
-                    <option value="gestor_celula">Gestor da Célula</option>
-                    <option value="professor">Professor</option>
-                  </select>
+                  <div className="flex flex-col">
+                    <select
+                      className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      value={user.role}
+                      onChange={(e) => handleUpdateRole(user.id, e.target.value as UserRole)}
+                    >
+                      <option value="admin">Administrador</option>
+                      <option value="gestor">Gestor</option>
+                      <option value="gestor_celula">Gestor da Célula</option>
+                      <option value="professor">Professor</option>
+                    </select>
+                    {user.role === 'gestor_celula' && (
+                      <span className="text-[10px] text-brand-primary font-bold">
+                        {cells.find(c => c.id === user.cellId)?.name || 'Célula não definida'}
+                      </span>
+                    )}
+                  </div>
                 </td>
-                <td className="px-6 py-3 text-right">
+                <td className="px-6 py-3 text-right flex items-center justify-end gap-2">
+                  <button 
+                    onClick={() => handleEdit(user)}
+                    className="p-2 text-white rounded-lg transition-all hover:opacity-80"
+                    style={{ backgroundColor: '#0000FF' }}
+                    title="Editar Gestor"
+                  >
+                    <Edit2 size={18} />
+                  </button>
                   <button 
                     onClick={() => setConfirmConfig({ isOpen: true, id: user.id })}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                    className="p-2 text-white rounded-lg transition-all hover:opacity-80"
+                    style={{ backgroundColor: '#FF0000' }}
+                    title="Remover Gestor"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -151,8 +207,8 @@ export default function Users() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white">
-              <h3 className="text-2xl font-bold text-slate-900">Novo Gestor</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
+              <h3 className="text-2xl font-bold text-slate-900">{editingId ? 'Editar Gestor' : 'Novo Gestor'}</h3>
+              <button onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ username: '', password: '', name: '', role: 'professor', cellId: '' }); }} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
                 <X size={24} />
               </button>
             </div>
@@ -211,10 +267,30 @@ export default function Users() {
                   <option value="professor">Professor (Leitura)</option>
                 </select>
               </div>
+
+              {formData.role === 'gestor_celula' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <Layout size={16} /> Célula Responsável
+                  </label>
+                  <select
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={formData.cellId}
+                    onChange={(e) => setFormData({ ...formData, cellId: e.target.value })}
+                  >
+                    <option value="">Selecionar Célula</option>
+                    {cells.map(cell => (
+                      <option key={cell.id} value={cell.id}>{cell.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="pt-4 flex gap-4">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ username: '', password: '', name: '', role: 'professor', cellId: '' }); }}
                   className="btn-secondary flex-1"
                 >
                   Cancelar
@@ -223,7 +299,7 @@ export default function Users() {
                   type="submit"
                   className="btn-primary flex-1"
                 >
-                  Adicionar
+                  {editingId ? 'Salvar' : 'Adicionar'}
                 </button>
               </div>
             </form>

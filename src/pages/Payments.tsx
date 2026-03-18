@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useUser } from '../contexts/UserContext';
 import { Teacher, Payment, SystemConfig } from '../types';
-import { Search, CheckCircle2, XCircle, Calendar, DollarSign, Plus, X, Users, ShieldAlert, ChevronDown, Check, Triangle } from 'lucide-react';
+import { Search, CheckCircle2, XCircle, Calendar, DollarSign, Plus, X, Users, ShieldAlert, ChevronDown, Check, Triangle, ArrowLeft } from 'lucide-react';
 import { format, isBefore, startOfMonth, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Notification from '../components/Notification';
 
 export default function Payments() {
+  const navigate = useNavigate();
   const { userProfile } = useUser();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -19,7 +21,9 @@ export default function Payments() {
   const [amount, setAmount] = useState(500); // Default amount
 
   const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; teacherId: string; month: number } | null>(null);
+  const [confirmPendingConfig, setConfirmPendingConfig] = useState<{ isOpen: boolean; paymentId: string; teacherName: string; month: number } | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedMonthsToPay, setSelectedMonthsToPay] = useState<number[]>([]);
@@ -76,6 +80,7 @@ export default function Payments() {
         }
 
         const existing = payments.find(p => p.teacherId === selectedTeacherId && p.month === month && p.year === selectedYear);
+        const status = userProfile?.role === 'gestor_celula' ? 'pending' : 'paid';
         
         if (existing) {
           if (existing.status === 'pending') {
@@ -91,7 +96,7 @@ export default function Payments() {
             month,
             year: selectedYear,
             amount: paymentAmount,
-            status: 'paid',
+            status,
             paidAt: new Date().toISOString(),
             recordedBy: userProfile?.username
           });
@@ -155,6 +160,7 @@ export default function Payments() {
 
     try {
       const paymentAmount = teacher.defaultAmount || amount;
+      const status = userProfile?.role === 'gestor_celula' ? 'pending' : 'paid';
 
       if (existing) {
         // Update pending to paid
@@ -164,18 +170,18 @@ export default function Payments() {
           recordedBy: userProfile?.username
         });
       } else {
-        // Create new paid record
+        // Create new record
         await addDoc(collection(db, 'payments'), {
           teacherId,
           month,
           year: selectedYear,
           amount: paymentAmount,
-          status: 'paid',
+          status,
           paidAt: new Date().toISOString(),
           recordedBy: userProfile?.username
         });
       }
-      setNotification({ message: 'Pagamento registrado com sucesso!', type: 'success' });
+      setNotification({ message: status === 'pending' ? 'Pagamento enviado para aprovação!' : 'Pagamento registrado com sucesso!', type: 'success' });
     } catch (error) {
       setNotification({ message: 'Erro ao registrar pagamento.', type: 'error' });
       handleFirestoreError(error, OperationType.CREATE, 'payments');
@@ -234,12 +240,45 @@ export default function Payments() {
     const existing = payments.find(p => p.teacherId === teacherId && p.month === month && p.year === selectedYear);
     
     if (existing) {
+      if (existing.status === 'pending' && (userProfile?.role === 'admin' || userProfile?.role === 'gestor')) {
+        const teacher = teachers.find(t => t.id === teacherId);
+        setConfirmPendingConfig({
+          isOpen: true,
+          paymentId: existing.id,
+          teacherName: teacher?.name || 'Professor',
+          month: month
+        });
+        return;
+      }
+      
+      // If it's paid, only admin/gestor can remove
+      if (existing.status === 'paid' && userProfile?.role === 'gestor_celula') {
+        setNotification({ message: 'Apenas Gestores podem remover pagamentos confirmados.', type: 'error' });
+        return;
+      }
+
       setConfirmConfig({ isOpen: true, teacherId, month });
       return;
     }
 
     // Use the new handlePayment logic which includes sequential check
     await handlePayment(teacherId, month);
+  };
+
+  const handleConfirmPending = async () => {
+    if (!confirmPendingConfig) return;
+    try {
+      await updateDoc(doc(db, 'payments', confirmPendingConfig.paymentId), {
+        status: 'paid',
+        confirmedBy: userProfile?.username,
+        confirmedAt: new Date().toISOString()
+      });
+      setNotification({ message: 'Pagamento confirmado com sucesso!', type: 'success' });
+      setConfirmPendingConfig(null);
+    } catch (error) {
+      setNotification({ message: 'Erro ao confirmar pagamento.', type: 'error' });
+      handleFirestoreError(error, OperationType.UPDATE, `payments/${confirmPendingConfig.paymentId}`);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -257,15 +296,38 @@ export default function Payments() {
     }
   };
 
-  const filteredTeachers = teachers.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (t.cardNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
-  );
+  const filteredTeachers = teachers.filter(t => {
+    const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.cardNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+    
+    let matchesCell = true;
+    if (userProfile?.role === 'gestor_celula') {
+      matchesCell = t.cellId === userProfile.cellId;
+    }
+
+    if (showPendingOnly) {
+      const hasPending = payments.some(p => p.teacherId === t.id && p.status === 'pending' && p.year === selectedYear);
+      return matchesSearch && matchesCell && hasPending;
+    }
+    
+    return matchesSearch && matchesCell;
+  });
 
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-4 px-6">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand-primary hover:border-brand-primary transition-all"
+          title="Voltar"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-2xl font-bold text-brand-ink">Pagamentos de Quotas</h2>
+      </div>
+
       <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-6 border-b border-slate-100">
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="space-y-1 flex-1 md:flex-none">
@@ -284,8 +346,21 @@ export default function Payments() {
           <div className="h-10 w-px bg-slate-200 hidden md:block" />
         </div>
 
-        <div className="relative w-full md:w-96 flex gap-2">
-          <div className="relative flex-1">
+        <div className="relative w-full md:w-auto flex flex-wrap gap-2">
+          {(userProfile?.role === 'admin' || userProfile?.role === 'gestor') && (
+            <button
+              onClick={() => setShowPendingOnly(!showPendingOnly)}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                showPendingOnly 
+                  ? 'bg-amber-100 text-amber-700 border-2 border-amber-200' 
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <Triangle size={16} className={showPendingOnly ? 'fill-amber-700' : ''} />
+              {showPendingOnly ? 'Mostrando Pendentes' : 'Ver Pendentes'}
+            </button>
+          )}
+          <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input
               type="text"
@@ -395,6 +470,14 @@ export default function Payments() {
         message={`Deseja confirmar o pagamento de ${selectedMonthsToPay.length} ${selectedMonthsToPay.length === 1 ? 'mês' : 'meses'} para o professor ${teachers.find(t => t.id === selectedTeacherId)?.name}? Total: Mt ${(amount * selectedMonthsToPay.length).toLocaleString('pt-MZ')}`}
         onConfirm={handleConfirmMultiPayment}
         onCancel={() => setShowConfirmPayment(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmPendingConfig?.isOpen}
+        title="Confirmar Pagamento Pendente"
+        message={`Deseja confirmar o pagamento de ${format(new Date(2024, (confirmPendingConfig?.month || 1) - 1), 'MMMM', { locale: ptBR })} para o professor ${confirmPendingConfig?.teacherName}?`}
+        onConfirm={handleConfirmPending}
+        onCancel={() => setConfirmPendingConfig(null)}
       />
 
       <ConfirmDialog
