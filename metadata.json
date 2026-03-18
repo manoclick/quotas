@@ -1,0 +1,5 @@
+{
+  "name": "Quotas - Gestão de Professores",
+  "description": "Sistema de gestão de quotas e contribuições mensais de professores com controle de hierarquia (Zona, Círculo, Célula) e níveis de acesso.",
+  "requestFramePermissions": []
+}

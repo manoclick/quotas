@@ -1,0 +1,95 @@
+{
+  "entities": {
+    "Zone": {
+      "title": "Zona",
+      "description": "Unidade geográfica de nível superior",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nome da zona" }
+      },
+      "required": ["name"]
+    },
+    "Circle": {
+      "title": "Círculo",
+      "description": "Unidade subordinada a uma Zona",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nome do círculo" },
+        "zoneId": { "type": "string", "description": "ID da zona pai" }
+      },
+      "required": ["name", "zoneId"]
+    },
+    "Cell": {
+      "title": "Célula",
+      "description": "Unidade subordinada a um Círculo",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nome da célula" },
+        "circleId": { "type": "string", "description": "ID do círculo pai" }
+      },
+      "required": ["name", "circleId"]
+    },
+    "Function": {
+      "title": "Função",
+      "description": "Cargo ou função do professor",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nome da função" }
+      },
+      "required": ["name"]
+    },
+    "Teacher": {
+      "title": "Professor",
+      "description": "Cadastro de professor",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "zoneId": { "type": "string" },
+        "circleId": { "type": "string" },
+        "cellId": { "type": "string" },
+        "functionId": { "type": "string" },
+        "cardNumber": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "contact": { "type": "string" },
+        "defaultAmount": { "type": "number", "description": "Valor padrão da quota mensal" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "cellId", "defaultAmount"]
+    },
+    "Payment": {
+      "title": "Pagamento",
+      "description": "Registro de contribuição mensal",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "month": { "type": "integer", "description": "Mês (1-12)" },
+        "year": { "type": "integer" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["paid", "pending"] },
+        "paidAt": { "type": "string", "format": "date-time" },
+        "recordedBy": { "type": "string", "description": "UID do gestor que registrou" }
+      },
+      "required": ["teacherId", "month", "year", "amount", "status"]
+    },
+    "User": {
+      "title": "Usuário do Sistema",
+      "description": "Gestores e administradores do sistema",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "gestor", "usuario"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/zones/{zoneId}": { "schema": "Zone", "description": "Coleção de zonas" },
+    "/circles/{circleId}": { "schema": "Circle", "description": "Coleção de círculos" },
+    "/cells/{cellId}": { "schema": "Cell", "description": "Coleção de células" },
+    "/functions/{functionId}": { "schema": "Function", "description": "Coleção de funções" },
+    "/teachers/{teacherId}": { "schema": "Teacher", "description": "Coleção de professores" },
+    "/payments/{paymentId}": { "schema": "Payment", "description": "Coleção de pagamentos" },
+    "/users/{userId}": { "schema": "User", "description": "Coleção de usuários e permissões" }
+  }
+}
