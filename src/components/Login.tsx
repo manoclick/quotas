@@ -85,25 +85,25 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-bg p-4">
-      <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 animate-in fade-in zoom-in duration-300">
-        <div className="w-20 h-20 bg-brand-primary rounded-3xl flex items-center justify-center text-white mx-auto mb-8 shadow-xl shadow-brand-primary/20">
-          <Lock size={40} />
+      <div className="max-w-sm w-full bg-white rounded-[2rem] shadow-2xl p-8 border border-slate-100 animate-in fade-in zoom-in duration-300">
+        <div className="w-14 h-14 bg-brand-primary rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-lg shadow-brand-primary/20">
+          <Lock size={28} />
         </div>
         
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-black text-brand-ink mb-2">QUOTAS</h1>
-          <p className="text-slate-500 font-medium">Acesso ao Sistema</p>
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-black text-brand-ink mb-1">QUOTAS</h1>
+          <p className="text-slate-400 text-sm font-medium">Acesso ao Sistema</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Usuário</label>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Usuário</label>
             <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 required
                 type="text"
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-brand-primary outline-none transition-all font-medium"
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none transition-all font-medium text-sm"
                 placeholder="Digite seu usuário"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -111,14 +111,14 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Senha</label>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Senha</label>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 required
                 type="password"
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-brand-primary outline-none transition-all font-medium"
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none transition-all font-medium text-sm"
                 placeholder="Digite sua senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -127,8 +127,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold animate-in slide-in-from-top-2">
-              <AlertCircle size={18} />
+            <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold animate-in slide-in-from-top-2">
+              <AlertCircle size={16} />
               {error}
             </div>
           )}
@@ -136,13 +136,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-brand-primary text-white font-black rounded-2xl shadow-lg shadow-brand-primary/20 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50"
+            className="w-full py-3 bg-brand-primary text-white text-sm font-black rounded-xl shadow-lg shadow-brand-primary/20 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50"
           >
             {loading ? 'Autenticando...' : 'ENTRAR NO SISTEMA'}
           </button>
         </form>
 
-        <p className="mt-10 text-center text-xs text-slate-400 font-medium leading-relaxed">
+        <p className="mt-8 text-center text-[10px] text-slate-400 font-medium leading-relaxed">
           Acesso restrito a pessoal autorizado.<br />
           Gestão de Contribuições e Quotas.
         </p>
